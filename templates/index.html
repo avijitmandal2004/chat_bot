@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>DataChat — Local RAG Chatbot</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&family=Instrument+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg:#07090f; --s1:#0e1118; --s2:#141820; --s3:#1a1f2b;
+  --border:#1e2434; --border2:#252d3f;
+  --accent:#3de8c8; --accent2:#7c6df8; --accent3:#f0a05a;
+  --text:#dde2f0; --muted:#4a5468; --muted2:#6b7694;
+  --user:#162438; --bot:#0f1520;
+  --danger:#e05470; --ok:#3de8c8;
+  --radius:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;overflow:hidden;}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:'Instrument Sans',sans-serif;
+  display:flex;flex-direction:column;
+}
+body::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(ellipse 55% 35% at 5% 5%, rgba(61,232,200,.055) 0%,transparent 65%),
+    radial-gradient(ellipse 45% 55% at 95% 95%, rgba(124,109,248,.07) 0%,transparent 65%);
+}
+
+/* ── Header ── */
+header{
+  position:relative;z-index:20;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 28px;
+  border-bottom:1px solid var(--border);
+  background:rgba(7,9,15,.92);
+  backdrop-filter:blur(14px);
+  flex-shrink:0;
+}
+.logo{display:flex;align-items:center;gap:10px;font-family:'Syne',sans-serif;font-weight:800;font-size:1.15rem;letter-spacing:-.025em;}
+.logo-mark{
+  width:30px;height:30px;border-radius:8px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:grid;place-items:center;font-size:14px;flex-shrink:0;
+}
+.logo em{color:var(--accent);font-style:normal;}
+
+.header-right{display:flex;align-items:center;gap:14px;}
+
+/* backend toggle */
+.backend-toggle{
+  display:flex;align-items:center;gap:6px;
+  background:var(--s2);border:1px solid var(--border);
+  border-radius:30px;padding:3px;
+}
+.backend-btn{
+  padding:5px 13px;border-radius:22px;border:none;cursor:pointer;
+  font-family:'JetBrains Mono',monospace;font-size:.68rem;font-weight:500;
+  color:var(--muted2);background:transparent;transition:all .2s;
+  display:flex;align-items:center;gap:5px;
+}
+.backend-btn.active{
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  color:#fff;
+}
+.backend-btn .dot-status{
+  width:5px;height:5px;border-radius:50%;background:var(--muted);flex-shrink:0;
+}
+.backend-btn.active .dot-status,.backend-btn.ok .dot-status{background:#fff;}
+.backend-btn.unavailable{opacity:.45;cursor:not-allowed;}
+
+.ds-pill{
+  font-family:'JetBrains Mono',monospace;font-size:.67rem;
+  padding:5px 12px;border-radius:20px;
+  border:1px solid var(--border);color:var(--muted2);background:var(--s1);
+  display:flex;align-items:center;gap:7px;transition:all .3s;
+}
+.ds-pill.loaded{border-color:var(--accent);color:var(--accent);background:rgba(61,232,200,.07);}
+.blink{animation:blink 1.8s infinite;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.35;}}
+
+/* ── Layout ── */
+.layout{flex:1;display:flex;overflow:hidden;position:relative;z-index:1;}
+
+/* ── Sidebar ── */
+.sidebar{
+  width:290px;flex-shrink:0;
+  border-right:1px solid var(--border);
+  background:var(--s1);
+  display:flex;flex-direction:column;gap:0;
+  overflow-y:auto;
+}
+.sidebar::-webkit-scrollbar{width:3px;}
+.sidebar::-webkit-scrollbar-thumb{background:var(--border2);}
+
+.sb-block{padding:18px 18px 0;}
+.sb-block:last-child{padding-bottom:18px;}
+
+.sb-label{
+  font-family:'Syne',sans-serif;font-weight:700;font-size:.6rem;
+  letter-spacing:.13em;text-transform:uppercase;color:var(--muted);
+  margin-bottom:10px;display:flex;align-items:center;gap:7px;
+}
+.sb-label::after{content:'';flex:1;height:1px;background:var(--border);}
+
+/* Upload */
+.upload-zone{
+  border:1.5px dashed var(--border2);border-radius:12px;
+  padding:22px 14px;text-align:center;cursor:pointer;
+  transition:all .25s;position:relative;overflow:hidden;
+}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--accent);background:rgba(61,232,200,.04);}
+.upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.up-icon{font-size:26px;margin-bottom:7px;}
+.up-text{font-size:.78rem;color:var(--muted2);line-height:1.5;}
+.up-text strong{color:var(--text);display:block;font-size:.82rem;margin-bottom:1px;}
+.up-hint{font-size:.65rem;color:var(--muted);margin-top:5px;font-family:'JetBrains Mono',monospace;}
+
+/* Progress */
+.upload-progress{display:none;margin-top:10px;}
+.progress-bar{height:3px;background:var(--border2);border-radius:3px;overflow:hidden;}
+.progress-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .3s;}
+.progress-label{font-size:.67rem;color:var(--muted2);margin-top:5px;font-family:'JetBrains Mono',monospace;}
+
+/* Stats */
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:2px;}
+.stat-card{
+  background:var(--bg);border:1px solid var(--border);border-radius:9px;
+  padding:8px 10px;
+}
+.stat-card .sv{font-family:'Syne',sans-serif;font-weight:700;font-size:.95rem;color:var(--accent);}
+.stat-card .sk{font-size:.62rem;color:var(--muted);margin-top:1px;font-family:'JetBrains Mono',monospace;}
+
+/* Preview */
+.preview-table-wrap{
+  background:var(--bg);border:1px solid var(--border);border-radius:9px;
+  overflow:auto;max-height:165px;
+  font-family:'JetBrains Mono',monospace;font-size:.62rem;
+}
+.preview-table-wrap table{border-collapse:collapse;width:100%;}
+.preview-table-wrap th{
+  background:var(--s2);color:var(--accent);padding:5px 9px;
+  position:sticky;top:0;text-align:left;white-space:nowrap;
+  border-bottom:1px solid var(--border);
+}
+.preview-table-wrap td{
+  padding:4px 9px;border-top:1px solid var(--border);
+  color:var(--muted2);white-space:nowrap;max-width:110px;
+  overflow:hidden;text-overflow:ellipsis;
+}
+.preview-table-wrap tr:hover td{color:var(--text);background:var(--s1);}
+
+/* Suggestions */
+.sugg-list{display:flex;flex-direction:column;gap:5px;}
+.sugg-btn{
+  background:var(--bg);border:1px solid var(--border);
+  color:var(--text);padding:8px 11px;border-radius:9px;
+  font-size:.73rem;font-family:'Instrument Sans',sans-serif;
+  text-align:left;cursor:pointer;transition:all .2s;line-height:1.4;
+}
+.sugg-btn:hover{border-color:var(--accent2);background:rgba(124,109,248,.08);color:#b0a8ff;}
+
+/* Clear */
+.clear-btn{
+  width:100%;padding:9px;border:1px solid var(--border);border-radius:9px;
+  background:transparent;color:var(--muted2);cursor:pointer;font-size:.75rem;
+  font-family:'Instrument Sans',sans-serif;transition:all .2s;display:flex;
+  align-items:center;justify-content:center;gap:6px;
+}
+.clear-btn:hover{border-color:var(--danger);color:var(--danger);background:rgba(224,84,112,.06);}
+
+/* ── Chat ── */
+.chat-area{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+
+.messages{
+  flex:1;overflow-y:auto;padding:24px;
+  display:flex;flex-direction:column;gap:18px;
+  scroll-behavior:smooth;
+}
+.messages::-webkit-scrollbar{width:4px;}
+.messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+
+/* Welcome */
+.welcome{
+  margin:auto;text-align:center;padding:40px 24px;
+  display:flex;flex-direction:column;align-items:center;gap:14px;
+}
+.welcome-glyph{
+  width:72px;height:72px;border-radius:20px;
+  background:linear-gradient(135deg,rgba(61,232,200,.15),rgba(124,109,248,.15));
+  border:1px solid var(--border2);
+  display:grid;place-items:center;font-size:32px;margin-bottom:4px;
+}
+.welcome h2{font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;color:var(--text);}
+.welcome p{font-size:.85rem;color:var(--muted2);max-width:360px;line-height:1.65;}
+.welcome-steps{
+  display:flex;flex-direction:column;gap:7px;margin-top:8px;
+  text-align:left;width:100%;max-width:320px;
+}
+.step{
+  display:flex;align-items:flex-start;gap:10px;
+  background:var(--s1);border:1px solid var(--border);border-radius:9px;
+  padding:9px 12px;font-size:.78rem;color:var(--muted2);
+}
+.step-n{
+  width:20px;height:20px;border-radius:50%;flex-shrink:0;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:grid;place-items:center;font-size:.65rem;font-weight:700;color:#fff;margin-top:1px;
+}
+
+/* Messages */
+.msg{display:flex;gap:11px;animation:fadeUp .28s ease;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(7px);}to{opacity:1;transform:translateY(0);}}
+.msg.user{flex-direction:row-reverse;}
+
+.av{
+  width:30px;height:30px;border-radius:50%;display:grid;place-items:center;
+  font-size:13px;flex-shrink:0;margin-top:3px;
+}
+.av.u{background:var(--user);border:1px solid rgba(124,109,248,.4);}
+.av.b{background:linear-gradient(135deg,var(--accent),var(--accent2));}
+
+.bubble{
+  max-width:70%;padding:11px 15px;border-radius:15px;
+  font-size:.87rem;line-height:1.68;
+}
+.msg.user .bubble{
+  background:var(--user);border:1px solid rgba(124,109,248,.25);
+  border-bottom-right-radius:4px;color:#bcc6e8;
+}
+.msg.bot .bubble{
+  background:var(--bot);border:1px solid var(--border2);
+  border-bottom-left-radius:4px;
+}
+.bubble b,.bubble strong{color:var(--accent);font-weight:600;}
+.bubble code{
+  background:var(--s2);padding:2px 6px;border-radius:5px;
+  font-family:'JetBrains Mono',monospace;font-size:.8em;color:var(--accent3);
+}
+.bubble .source-tag{
+  display:inline-block;margin-top:8px;
+  font-family:'JetBrains Mono',monospace;font-size:.62rem;
+  color:var(--muted);background:var(--s2);border:1px solid var(--border);
+  padding:2px 8px;border-radius:20px;
+}
+
+/* Typing */
+.typing{display:flex;gap:5px;align-items:center;padding:14px 15px;}
+.td{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:td 1.1s infinite;}
+.td:nth-child(2){animation-delay:.18s;} .td:nth-child(3){animation-delay:.36s;}
+@keyframes td{0%,60%,100%{transform:translateY(0);opacity:.35;}30%{transform:translateY(-6px);opacity:1;}}
+
+/* Error bubble */
+.bubble.error{border-color:rgba(224,84,112,.4);color:#f09aaa;}
+
+/* Input */
+.input-bar{
+  padding:14px 24px 18px;border-top:1px solid var(--border);
+  display:flex;gap:10px;align-items:flex-end;
+  background:rgba(7,9,15,.95);backdrop-filter:blur(10px);flex-shrink:0;
+}
+.input-wrap{
+  flex:1;background:var(--s1);border:1px solid var(--border);
+  border-radius:13px;display:flex;align-items:center;
+  padding:0 14px;transition:border-color .2s;
+}
+.input-wrap:focus-within{border-color:var(--accent);}
+#q{
+  flex:1;background:none;border:none;outline:none;
+  color:var(--text);font-family:'Instrument Sans',sans-serif;
+  font-size:.88rem;padding:13px 0;resize:none;max-height:100px;line-height:1.5;
+}
+#q::placeholder{color:var(--muted);}
+.send{
+  width:42px;height:42px;border-radius:11px;flex-shrink:0;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  border:none;cursor:pointer;display:grid;place-items:center;
+  font-size:16px;transition:transform .15s,opacity .15s;
+}
+.send:hover{transform:scale(1.06);}
+.send:active{transform:scale(.94);}
+.send:disabled{opacity:.35;cursor:not-allowed;transform:none;}
+.status{
+  text-align:center;font-size:.65rem;color:var(--muted);
+  padding:5px 0 0;font-family:'JetBrains Mono',monospace;
+}
+
+/* Divider */
+.sb-div{height:1px;background:var(--border);margin:14px 0;}
+
+@media(max-width:640px){.sidebar{display:none;}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><div class="logo-mark">🧠</div>Data<em>Chat</em></div>
+  <div class="header-right">
+    <div class="backend-toggle">
+      <button class="backend-btn active" id="btn-ollama" onclick="setBackend('ollama')">
+        <span class="dot-status" id="dot-ollama"></span>Ollama
+      </button>
+      <button class="backend-btn" id="btn-hf" onclick="setBackend('huggingface')">
+        <span class="dot-status" id="dot-hf"></span>HuggingFace
+      </button>
+    </div>
+    <div class="ds-pill" id="ds-pill">
+      <span style="width:6px;height:6px;border-radius:50%;background:var(--muted);display:inline-block;" id="ds-dot"></span>
+      <span id="ds-label">No dataset</span>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sb-block" style="padding-top:18px;">
+      <div class="sb-label">Upload Dataset</div>
+      <div class="upload-zone" id="upzone">
+        <input type="file" id="file-in" accept=".csv,.pdf,.txt,.xlsx,.json"/>
+        <div class="up-icon">📂</div>
+        <div class="up-text"><strong>Drop or click to upload</strong>CSV, PDF, TXT, XLSX, JSON</div>
+        <div class="up-hint">Max 50 MB</div>
+      </div>
+      <div class="upload-progress" id="up-prog">
+        <div class="progress-bar"><div class="progress-fill" id="prog-fill"></div></div>
+        <div class="progress-label" id="prog-label">Processing…</div>
+      </div>
+    </div>
+
+    <div class="sb-block" id="sb-stats" style="display:none">
+      <div class="sb-div"></div>
+      <div class="sb-label">Dataset Info</div>
+      <div class="stat-grid" id="stat-grid"></div>
+    </div>
+
+    <div class="sb-block" id="sb-prev" style="display:none">
+      <div class="sb-div"></div>
+      <div class="sb-label">Preview</div>
+      <div class="preview-table-wrap" id="prev-tbl"></div>
+    </div>
+
+    <div class="sb-block" id="sb-sugg" style="display:none">
+      <div class="sb-div"></div>
+      <div class="sb-label">Try Asking</div>
+      <div class="sugg-list" id="sugg-list"></div>
+    </div>
+
+    <div class="sb-block" id="sb-clear" style="display:none;padding-bottom:18px;">
+      <div class="sb-div"></div>
+      <button class="clear-btn" onclick="clearDataset()">🗑 Clear dataset</button>
+    </div>
+  </div>
+
+  <!-- Chat -->
+  <div class="chat-area">
+    <div class="messages" id="msgs">
+      <div class="welcome" id="welcome">
+        <div class="welcome-glyph">🤖</div>
+        <h2>Ask Your Data</h2>
+        <p>100% local — no API keys, no internet required. Your data never leaves your machine.</p>
+        <div class="welcome-steps">
+          <div class="step"><div class="step-n">1</div>Choose a backend (Ollama or HuggingFace) in the header</div>
+          <div class="step"><div class="step-n">2</div>Upload your CSV, PDF, or any dataset on the left</div>
+          <div class="step"><div class="step-n">3</div>Ask questions in plain English and get natural answers</div>
+        </div>
+      </div>
+    </div>
+    <div class="input-bar">
+      <div class="input-wrap">
+        <textarea id="q" rows="1" placeholder="Ask anything about your dataset…"></textarea>
+      </div>
+      <button class="send" id="send-btn" title="Send (Enter)">➤</button>
+    </div>
+    <div class="status" id="statusbar">Ready · 100% local</div>
+  </div>
+</div>
+
+<script>
+let backend = 'ollama';
+let busy = false;
+
+// ── Backend toggle ────────────────────────────────────────
+async function setBackend(b) {
+  backend = b;
+  document.querySelectorAll('.backend-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById('btn-' + b).classList.add('active');
+}
+
+async function checkStatus() {
+  try {
+    const r = await fetch('/api/status');
+    const s = await r.json();
+    const ollDot = document.getElementById('dot-ollama');
+    const hfDot  = document.getElementById('dot-hf');
+    const ollBtn = document.getElementById('btn-ollama');
+    const hfBtn  = document.getElementById('btn-hf');
+    if (s.ollama) {
+      ollDot.style.background='#3de8c8';
+      ollBtn.classList.add('ok');
+      ollBtn.classList.remove('unavailable');
+      // Fetch installed models
+      try {
+        const mr = await fetch('/api/models');
+        const md = await mr.json();
+        if(md.models && md.models.length > 0) {
+          ollBtn.title = 'Models: ' + md.models.join(', ');
+          setStatus('Ollama ready · ' + md.models.length + ' model(s): ' + md.models.slice(0,2).join(', '));
+        } else {
+          setStatus('⚠️ Ollama running but no models installed. Run: ollama pull llama3.2');
+          ollBtn.classList.add('unavailable');
+        }
+      } catch(e) {}
+    } else {
+      ollBtn.classList.add('unavailable');
+      setStatus('⚠️ Ollama not running — start with: ollama serve');
+    }
+    if (s.huggingface) { hfDot.style.background='#3de8c8'; hfBtn.classList.add('ok'); }
+  } catch(e) { setStatus('Could not connect to Flask server.'); }
+}
+checkStatus();
+
+// ── File upload ───────────────────────────────────────────
+const fileIn  = document.getElementById('file-in');
+const upzone  = document.getElementById('upzone');
+
+fileIn.addEventListener('change', e => { if(e.target.files[0]) uploadFile(e.target.files[0]); });
+upzone.addEventListener('dragover', e => { e.preventDefault(); upzone.classList.add('drag'); });
+upzone.addEventListener('dragleave', () => upzone.classList.remove('drag'));
+upzone.addEventListener('drop', e => {
+  e.preventDefault(); upzone.classList.remove('drag');
+  if(e.dataTransfer.files[0]) uploadFile(e.dataTransfer.files[0]);
+});
+
+async function uploadFile(file) {
+  const prog = document.getElementById('up-prog');
+  const fill = document.getElementById('prog-fill');
+  const lbl  = document.getElementById('prog-label');
+  prog.style.display = '';
+  lbl.textContent = 'Uploading…'; fill.style.width = '30%';
+
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    lbl.textContent = 'Processing & embedding…'; fill.style.width = '65%';
+    const r = await fetch('/api/upload', { method:'POST', body:fd });
+    const text = await r.text();
+    let d;
+    try { d = JSON.parse(text); }
+    catch(e) {
+      lbl.textContent = '❌ Server error (' + r.status + '). Check terminal for details.';
+      console.error('Raw server response:', text.slice(0, 500));
+      return;
+    }
+    fill.style.width = '100%';
+    if(d.error) { lbl.textContent = '❌ ' + d.error; return; }
+    setTimeout(() => { prog.style.display='none'; fill.style.width='0%'; }, 800);
+    onDatasetLoaded(d);
+  } catch(e) {
+    lbl.textContent = '❌ Upload failed: ' + e.message;
+    console.error(e);
+  }
+}
+
+function onDatasetLoaded(d) {
+  // Badge
+  const pill = document.getElementById('ds-pill');
+  const dot  = document.getElementById('ds-dot');
+  document.getElementById('ds-label').textContent = d.filename;
+  pill.classList.add('loaded');
+  dot.style.background = 'var(--accent)';
+  dot.classList.add('blink');
+
+  // Stats
+  const sg = document.getElementById('stat-grid');
+  const stats = [];
+  if(d.rows)    stats.push(['Rows',    d.rows.toLocaleString()]);
+  if(d.columns) stats.push(['Cols',    d.columns.length]);
+  if(d.pages)   stats.push(['Pages',   d.pages]);
+  if(d.chunks)  stats.push(['Chunks',  d.chunks]);
+  stats.push(['Type', d.type?.toUpperCase() || '—']);
+  sg.innerHTML = stats.map(([k,v])=>`<div class="stat-card"><div class="sv">${v}</div><div class="sk">${k}</div></div>`).join('');
+  document.getElementById('sb-stats').style.display = '';
+
+  // Preview (CSV/XLSX)
+  if(d.preview && Array.isArray(d.preview) && d.preview.length > 0) {
+    const cols = Object.keys(d.preview[0]);
+    let html = '<table><thead><tr>' + cols.map(c=>`<th>${esc(c)}</th>`).join('') + '</tr></thead><tbody>';
+    d.preview.forEach(row => {
+      html += '<tr>' + cols.map(c=>`<td title="${esc(String(row[c]??''))}">${esc(String(row[c]??''))}</td>`).join('') + '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('prev-tbl').innerHTML = html;
+    document.getElementById('sb-prev').style.display = '';
+  } else if(d.preview && typeof d.preview === 'string') {
+    document.getElementById('prev-tbl').innerHTML = `<div style="padding:10px;font-size:.68rem;color:var(--muted2);white-space:pre-wrap;line-height:1.5;">${esc(d.preview.slice(0,400))}</div>`;
+    document.getElementById('sb-prev').style.display = '';
+  }
+
+  // Suggestions
+  buildSuggestions(d);
+  document.getElementById('sb-clear').style.display = '';
+
+  // Chat welcome message
+  addBot(`✅ <strong>${d.filename}</strong> loaded!\n\n${
+    d.rows ? `Found <strong>${d.rows.toLocaleString()} rows</strong> across <strong>${d.columns?.length} columns</strong>: ${d.columns?.slice(0,5).join(', ')}${d.columns?.length>5?'…':''}.\n\n` : ''
+  }Ask me anything about this data in plain English.`, d.type);
+}
+
+function buildSuggestions(d) {
+  const cols = (d.columns||[]).map(c=>c.toLowerCase());
+  const q = [];
+  if(cols.some(c=>c.includes('sale')||c.includes('revenue')||c.includes('amount'))) q.push('What is the total revenue?');
+  if(cols.some(c=>c.includes('product')||c.includes('item'))) q.push('Which product has the highest sales?');
+  if(cols.some(c=>c.includes('date')||c.includes('month')||c.includes('year'))) q.push('Show me the trend over time.');
+  if(cols.some(c=>c.includes('region')||c.includes('city')||c.includes('country'))) q.push('Which region performs best?');
+  if(cols.some(c=>c.includes('customer')||c.includes('client'))) q.push('Who are the top 5 customers?');
+  if(d.type==='pdf'||d.type==='txt') q.push('Give me a summary of this document.','What are the key points?');
+  if(q.length < 3) q.push('Give me a summary of the dataset.','What are the most important insights?');
+
+  const sl = document.getElementById('sugg-list');
+  sl.innerHTML = '';
+  q.slice(0,5).forEach(txt => {
+    const b = document.createElement('button');
+    b.className = 'sugg-btn';
+    b.textContent = txt;
+    b.onclick = () => { document.getElementById('q').value = txt; sendMsg(); };
+    sl.appendChild(b);
+  });
+  document.getElementById('sb-sugg').style.display = '';
+}
+
+async function clearDataset() {
+  await fetch('/api/clear', {method:'POST'});
+  ['sb-stats','sb-prev','sb-sugg','sb-clear'].forEach(id => document.getElementById(id).style.display='none');
+  document.getElementById('ds-label').textContent = 'No dataset';
+  document.getElementById('ds-pill').classList.remove('loaded');
+  document.getElementById('ds-dot').style.background = 'var(--muted)';
+  document.getElementById('ds-dot').classList.remove('blink');
+  document.getElementById('msgs').innerHTML = '';
+  document.getElementById('welcome').style.display = '';
+  fileIn.value = '';
+}
+
+// ── Chat ──────────────────────────────────────────────────
+document.getElementById('send-btn').addEventListener('click', sendMsg);
+document.getElementById('q').addEventListener('keydown', e => {
+  if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendMsg(); }
+});
+document.getElementById('q').addEventListener('input', function(){
+  this.style.height='auto';
+  this.style.height=Math.min(this.scrollHeight,100)+'px';
+});
+
+async function sendMsg() {
+  const txt = document.getElementById('q').value.trim();
+  if(!txt || busy) return;
+  busy = true;
+  document.getElementById('send-btn').disabled = true;
+  document.getElementById('welcome').style.display = 'none';
+
+  addUser(txt);
+  document.getElementById('q').value = '';
+  document.getElementById('q').style.height = 'auto';
+
+  const tid = addTyping();
+  setStatus('Thinking with ' + (backend==='ollama'?'Ollama':'HuggingFace') + '…');
+
+  try {
+    const r = await fetch('/api/chat', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ question: txt, backend })
+    });
+    const text = await r.text();
+    let d;
+    try { d = JSON.parse(text); }
+    catch(e) {
+      removeTyping(tid);
+      addBot('❌ Server error (' + r.status + '). Check your terminal for the Python error.', null, true);
+      setStatus('Error');
+      busy = false;
+      document.getElementById('send-btn').disabled = false;
+      return;
+    }
+    removeTyping(tid);
+    if(d.error) addBot('❌ ' + d.error, null, true);
+    else addBot(d.answer, d.backend);
+    setStatus('Ready · ' + new Date().toLocaleTimeString());
+  } catch(e) {
+    removeTyping(tid);
+    addBot('❌ Request failed: ' + e.message, null, true);
+    setStatus('Error');
+  }
+  busy = false;
+  document.getElementById('send-btn').disabled = false;
+}
+
+function addUser(txt) {
+  const msgs = document.getElementById('msgs');
+  const d = document.createElement('div');
+  d.className = 'msg user';
+  d.innerHTML = `<div class="av u">👤</div><div class="bubble">${esc(txt)}</div>`;
+  msgs.appendChild(d); scroll();
+}
+
+function addBot(txt, src, isErr=false) {
+  const msgs = document.getElementById('msgs');
+  const d = document.createElement('div');
+  d.className = 'msg bot';
+  const srcTag = src ? `<div class="source-tag">via ${src==='ollama'?'🦙 Ollama':'🤗 HuggingFace'}</div>` : '';
+  d.innerHTML = `<div class="av b">🤖</div><div class="bubble${isErr?' error':''}">${fmt(txt)}${srcTag}</div>`;
+  msgs.appendChild(d); scroll();
+}
+
+function addTyping() {
+  const id = 'ty'+Date.now();
+  const d = document.createElement('div');
+  d.className='msg bot'; d.id=id;
+  d.innerHTML=`<div class="av b">🤖</div><div class="bubble"><div class="typing"><div class="td"></div><div class="td"></div><div class="td"></div></div></div>`;
+  document.getElementById('msgs').appendChild(d); scroll();
+  return id;
+}
+
+function removeTyping(id){ const e=document.getElementById(id); if(e)e.remove(); }
+function scroll(){ const m=document.getElementById('msgs'); m.scrollTop=m.scrollHeight; }
+function setStatus(t){ document.getElementById('statusbar').textContent=t; }
+
+function fmt(t){
+  return t
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
+    .replace(/`(.*?)`/g,'<code>$1</code>')
+    .replace(/\n/g,'<br>');
+}
+function esc(t){ return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+</script>
+</body>
+</html>
