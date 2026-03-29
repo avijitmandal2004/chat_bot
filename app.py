@@ -171,7 +171,6 @@ def get_unique(column):
     return jsonify(values)
 
 
-
 # Filter API (FINAL FIX)
 
 @app.route('/api/filter', methods=['POST'])
