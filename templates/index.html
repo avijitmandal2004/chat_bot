@@ -4,6 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>DataChat — Local RAG Chatbot</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&family=Instrument+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -357,6 +358,7 @@ header{
   <!-- Chat -->
   <div class="chat-area">
     <div class="messages" id="msgs">
+      <canvas id="chart" style="max-width:600px; margin:20px;"></canvas>
       <div class="welcome" id="welcome">
         <div class="welcome-glyph">🤖</div>
         <h2>Ask Your Data</h2>
@@ -368,6 +370,7 @@ header{
         </div>
       </div>
     </div>
+    <button onclick="applyFilter()" style="margin:10px;">Filter Data</button>
     <div class="input-bar">
       <div class="input-wrap">
         <textarea id="q" rows="1" placeholder="Ask anything about your dataset…"></textarea>
@@ -636,6 +639,72 @@ function fmt(t){
     .replace(/\n/g,'<br>');
 }
 function esc(t){ return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+//FILTER FUNCTION
+async function applyFilter() {
+  const column = prompt("Enter column name:");
+  const value = prompt("Enter value:");
+
+  if (!column || !value) return;
+
+  const res = await fetch('/api/filter', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ column, value })
+  });
+
+  const data = await res.json();
+
+  if (data.error) {
+    addBot("❌ " + data.error, null, true);
+    return;
+  }
+
+  let html = "<table border='1'><tr>";
+
+  for (let key in data.data[0]) {
+    html += "<th>" + key + "</th>";
+  }
+  html += "</tr>";
+
+  data.data.forEach(row => {
+    html += "<tr>";
+    for (let key in row) {
+      html += "<td>" + row[key] + "</td>";
+    }
+    html += "</tr>";
+  });
+
+  html += "</table>";
+
+  addBot("Filter Result:<br>" + html);
+  drawChart(data.data);
+}
+function drawChart(data) {
+  if (!data || data.length === 0) return;
+
+  const keys = Object.keys(data[0]);
+
+  const labels = data.map(row => row[keys[0]]);
+  const values = data.map(row => Number(row[keys[1]]) || 0);
+
+  const ctx = document.getElementById('chart').getContext('2d');
+
+  if (window.myChart) {
+    window.myChart.destroy();
+  }
+
+  window.myChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: keys[1],
+        data: values
+      }]
+    }
+  });
+}
 </script>
 </body>
 </html>
