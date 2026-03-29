@@ -25,9 +25,9 @@ def index():
     return render_template('index.html')
 
 
-# =====================================
+
 # Upload Dataset
-# =====================================
+
 @app.route('/api/upload', methods=['POST'])
 def upload():
 
@@ -75,9 +75,9 @@ def upload():
         return jsonify({'error': str(e)})
 
 
-# =====================================
+
 # Chat API
-# =====================================
+
 @app.route('/api/chat', methods=['POST'])
 def chat():
 
@@ -134,9 +134,9 @@ def chat():
         return jsonify({'answer': str(e)})
 
 
-# =====================================
+
 # Get Columns
-# =====================================
+
 @app.route('/api/columns', methods=['GET'])
 def get_columns():
 
@@ -148,9 +148,9 @@ def get_columns():
     return jsonify(list(df.columns))
 
 
-# =====================================
+
 # Get Unique Values
-# =====================================
+
 @app.route('/api/unique/<column>', methods=['GET'])
 def get_unique(column):
 
@@ -171,9 +171,9 @@ def get_unique(column):
     return jsonify(values)
 
 
-# =====================================
+
 # Filter API (FINAL FIX)
-# =====================================
+
 @app.route('/api/filter', methods=['POST'])
 def filter_data():
 
@@ -221,9 +221,8 @@ def filter_data():
         return jsonify({'error': str(e)})
 
 
-# =====================================
 # Clear Dataset
-# =====================================
+
 @app.route('/api/clear', methods=['POST'])
 def clear():
 
@@ -232,10 +231,7 @@ def clear():
 
     return jsonify({'status': 'cleared'})
 
-
-# =====================================
 # Run Server
-# =====================================
 if __name__ == '__main__':
 
     os.makedirs('uploads', exist_ok=True)
