@@ -292,12 +292,39 @@ header{
 .sb-div{height:1px;background:var(--border);margin:14px 0;}
 
 @media(max-width:640px){.sidebar{display:none;}}
+.filter-btn {
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: linear-gradient(135deg, var(--s2), var(--s3));
+  color: var(--text);
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.filter-btn:hover {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff;
+  box-shadow: 0 0 10px rgba(61,232,200,0.5);
+}
+
+.filter-btn:active {
+  transform: scale(0.95);
+}
+
 </style>
 </head>
 <body>
 
 <header>
   <div class="logo"><div class="logo-mark">🧠</div>Data<em>Chat</em></div>
+   <div style="margin-left:20px;">
+  <button class="filter-btn" onclick="applyFilter()">
+  Filter Data
+</button>
+</div>
   <div class="header-right">
     <div class="backend-toggle">
       <button class="backend-btn active" id="btn-ollama" onclick="setBackend('ollama')">
@@ -370,7 +397,7 @@ header{
         </div>
       </div>
     </div>
-    <button onclick="applyFilter()" style="margin:10px;">Filter Data</button>
+    
     <div class="input-bar">
       <div class="input-wrap">
         <textarea id="q" rows="1" placeholder="Ask anything about your dataset…"></textarea>
